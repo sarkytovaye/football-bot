@@ -339,7 +339,7 @@ for i, team in enumerate(teams, 1):
 
     text += "\n"
 
-      else:
+    else:
 
         main_players = players[:10]
         bench = players[10:]
