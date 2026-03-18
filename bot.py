@@ -323,7 +323,7 @@ async def teams(message:types.Message):
 
         if len(players) >= 15:
 
-        teams = balance_teams(players[:15], 3, 5)
+            teams = balance_teams(players[:15], 3, 5)
 
 text = "⚽ Команды\n\n"
 
