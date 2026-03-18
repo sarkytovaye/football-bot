@@ -307,21 +307,21 @@ async def teams(message:types.Message):
 
             player = get_player(u)
 
-            if player:
+        if player:
 
                 players.append({
                     "name": player[1],
                     "rating": player[2]
                 })
 
-    if len(players) < 10:
+        if len(players) < 10:
 
         await message.answer("❗ Нужно минимум 10 игроков")
         return
 
     text = "⚽ Команды\n\n"
 
-    if len(players) >= 15:
+        if len(players) >= 15:
 
         teams = balance_teams(players[:15], 3, 5)
 
@@ -339,7 +339,7 @@ for i, team in enumerate(teams, 1):
 
     text += "\n"
 
-    else:
+        else:
 
         main_players = players[:10]
         bench = players[10:]
