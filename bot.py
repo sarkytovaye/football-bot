@@ -319,13 +319,13 @@ async def teams(message:types.Message):
             await message.answer("❗ Нужно минимум 10 игроков")
             return
 
-    text = "⚽ Команды\n\n"
-
+            text = "⚽ Команды\n\n"
+    
         if len(players) >= 15:
-
+        
             teams = balance_teams(players[:15], 3, 5)
 
-    text = "⚽ Команды\n\n"
+            text = "⚽ Команды\n\n"
 
 for i, team in enumerate(teams, 1):
 
