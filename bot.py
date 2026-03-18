@@ -363,7 +363,7 @@ else:
             for p in bench:
                 text += p["name"]+"\n"
 
-    await message.answer(text)
+await message.answer(text)
 
 async def create_teams_auto(chat_id):
 
