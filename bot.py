@@ -316,8 +316,8 @@ async def teams(message:types.Message):
 
         if len(players) < 10:
 
-        await message.answer("❗ Нужно минимум 10 игроков")
-        return
+            await message.answer("❗ Нужно минимум 10 игроков")
+            return
 
     text = "⚽ Команды\n\n"
 
