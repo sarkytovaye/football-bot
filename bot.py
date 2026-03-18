@@ -314,7 +314,7 @@ async def teams(message:types.Message):
                     "rating": player[2]
                 })
 
-            if len(players) < 10:
+        if len(players) < 10:
 
         await message.answer("❗ Нужно минимум 10 игроков")
         return
