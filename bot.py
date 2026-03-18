@@ -307,14 +307,14 @@ async def teams(message:types.Message):
 
             player = get_player(u)
 
-        if player:
+            if player:
 
                 players.append({
                     "name": player[1],
                     "rating": player[2]
                 })
 
-        if len(players) < 10:
+            if len(players) < 10:
 
         await message.answer("❗ Нужно минимум 10 игроков")
         return
