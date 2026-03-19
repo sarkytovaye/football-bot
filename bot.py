@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import os
 
-TOKEN = os.getenv("8669248941:AAHFsZeYf91dJyvn54WTuIVM7NssTOqShbE")
+TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
