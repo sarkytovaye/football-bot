@@ -313,55 +313,52 @@ async def teams(message: types.Message):
 
                 players.append({"name": player[1], "rating": player[2]})
 
-        if len(players) < 10:
+    if len(players) < 10:
 
-            await message.answer("❗ Нужно минимум 10 игроков")
-            return
+        await message.answer("❗ Нужно минимум 10 игроков")
+        return
 
-            text = "⚽ Команды\n\n"
+    text = "⚽ Команды\n\n"
 
-        if len(players) >= 15:
+    if len(players) >= 15:
 
-            teams = balance_teams(players[:15], 3, 5)
+        teams = balance_teams(players[:15], 3, 5)
 
-            text = "⚽ Команды\n\n"
+        for i, team in enumerate(teams, 1):
 
+            total = team_total(team)
+            avg = team_average(team)
 
-for i, team in enumerate(teams, 1):
+            text += f"🔹 Команда {i} ({total} | ср. {avg})\n"
 
-    total = team_total(team)
-    avg = team_average(team)
+            for p in team:
+                text += f"{p['name']} ({p['rating']})\n"
 
-    text += f"🔹 Команда {i} ({total} | ср. {avg})\n"
+            text += "\n"
 
-    for p in team:
-        text += f"{p['name']} ({p['rating']})\n"
+    else:
 
-    text += "\n"
+        main_players = players[:10]
+        bench = players[10:]
 
-else:
+        teams = balance_teams(main_players, 2, 5)
 
-    main_players = players[:10]
-    bench = players[10:]
+        text += "🔵 Команда\n"
 
-    teams = balance_teams(main_players, 2, 5)
-
-    text += "🔵 Команда\n"
-
-    for p in teams[0]:
-        text += p["name"] + "\n"
-
-    text += "\n🔴 Команда\n"
-
-    for p in teams[1]:
-        text += p["name"] + "\n"
-
-    if bench:
-
-        text += "\n🪑 Запасные\n"
-
-        for p in bench:
+        for p in teams[0]:
             text += p["name"] + "\n"
+
+        text += "\n🔴 Команда\n"
+
+        for p in teams[1]:
+            text += p["name"] + "\n"
+
+        if bench:
+
+            text += "\n🪑 Запасные\n"
+
+            for p in bench:
+                text += p["name"] + "\n"
 
     await message.answer(text)
 
