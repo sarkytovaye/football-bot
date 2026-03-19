@@ -199,7 +199,7 @@ async def get_name(message: types.Message):
         "name": message.text
     }
 
-    await message.answer("1️⃣ Выносливость", reply_markup=rating_keyboard(user_id, "self_stamina"))
+    await message.answer("1️⃣ Выносливость 1 - нет, 10 - может бегать без остановки 1 час", reply_markup=rating_keyboard(user_id, "self_stamina"))
 
 
 @dp.callback_query(lambda c: "self_" in c.data)
@@ -213,13 +213,13 @@ async def self_rating(call: types.CallbackQuery):
     data[criterion.replace("self_", "")] = value
 
     if criterion == "self_stamina":
-        await call.message.edit_text("2️⃣ Опыт", reply_markup=rating_keyboard(user_id, "self_experience"))
+        await call.message.edit_text("2️⃣ Опыт 1 - нет, 10 - играет больше 10 лет", reply_markup=rating_keyboard(user_id, "self_experience"))
 
     elif criterion == "self_experience":
-        await call.message.edit_text("3️⃣ Скорость", reply_markup=rating_keyboard(user_id, "self_speed"))
+        await call.message.edit_text("3️⃣ Скорость 1-нет, 10 - тренированная скоростная выносливость", reply_markup=rating_keyboard(user_id, "self_speed"))
 
     elif criterion == "self_speed":
-        await call.message.edit_text("4️⃣ Техника", reply_markup=rating_keyboard(user_id, "self_technique"))
+        await call.message.edit_text("4️⃣ Техника 1-нет, 10 - професиональная техническая подготовка", reply_markup=rating_keyboard(user_id, "self_technique"))
 
     else:
         save_player(user_id, data["name"], data)
@@ -262,7 +262,7 @@ async def send_next_player(message, user_id):
     process["data"] = {"player_id": player_id}
 
     await message.answer(
-        f"Оцени: {name}\n1️⃣ Выносливость",
+        f"Оцени: {name}\n1️⃣ Выносливость 1 - нет, 10 - может бегать без остановки 1 час",
         reply_markup=rating_keyboard(player_id, "stamina")
     )
 
@@ -281,13 +281,13 @@ async def rate_player(call: types.CallbackQuery):
     data[criterion] = value
 
     if criterion == "stamina":
-        await call.message.edit_text("2️⃣ Опыт", reply_markup=rating_keyboard(player_id, "experience"))
+        await call.message.edit_text("2️⃣ Опыт 1 - нет, 10 - играет больше 10 лет", reply_markup=rating_keyboard(player_id, "experience"))
 
     elif criterion == "experience":
-        await call.message.edit_text("3️⃣ Скорость", reply_markup=rating_keyboard(player_id, "speed"))
+        await call.message.edit_text("3️⃣ СкоСкорость 1-нет, 10 - тренированная скоростная выносливостьрость", reply_markup=rating_keyboard(player_id, "speed"))
 
     elif criterion == "speed":
-        await call.message.edit_text("4️⃣ Техника", reply_markup=rating_keyboard(player_id, "technique"))
+        await call.message.edit_text("4️⃣ Техника 1-нет, 10 - професиональная техническая подготовка", reply_markup=rating_keyboard(player_id, "technique"))
 
     elif criterion == "technique":
         save_rating(player_id, user_id, data)
