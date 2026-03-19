@@ -1,4 +1,5 @@
 import asyncio
+from operator import call
 import sqlite3
 import random
 import itertools
@@ -246,9 +247,11 @@ async def play_yes(call: types.CallbackQuery):
     player = get_player(call.from_user.id)
 
     if not player:
-
-        await call.answer("Сначала зарегистрируйтесь /register", show_alert=True)
-
+        await call.message.answer(
+        "Сначала зарегистрируйтесь 👇",
+        reply_markup=register_keyboard
+    )
+        await call.answer()
         return
 
     votes[call.from_user.id] = "yes"
