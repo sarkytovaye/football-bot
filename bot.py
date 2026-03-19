@@ -426,7 +426,7 @@ async def start_rating(call: types.CallbackQuery):
     await send_next_player(call.message, call.from_user.id)
     async def send_next_player(message, user_id):
 
-    process = rating_process[user_id]
+        process = rating_process[user_id]
     players = process["players"]
     index = process["current_index"]
 
@@ -454,9 +454,9 @@ async def start_rating(call: types.CallbackQuery):
         reply_markup=rating_keyboard_10(player_id, "stamina")
     )
     @dp.callback_query(lambda c: c.data.startswith("rate_") and "self" not in c.data)
-async def rate_player(call: types.CallbackQuery):
+    async def rate_player(call: types.CallbackQuery):
 
-    parts = call.data.split("_")
+        parts = call.data.split("_")
 
     player_id = int(parts[1])
     criterion = parts[2]
