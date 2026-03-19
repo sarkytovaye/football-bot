@@ -28,13 +28,13 @@ conn = sqlite3.connect("players.db")
 cursor = conn.cursor()
 
 cursor.execute(
-    """
+    '''
 CREATE TABLE IF NOT EXISTS players(
 tg_id INTEGER PRIMARY KEY,
 name TEXT,
 rating INTEGER
 )
-"""
+'''
 )
 
 conn.commit()
@@ -46,7 +46,6 @@ def save_player(tg_id, name, rating):
     )
 
     conn.commit()
-
 
 def get_player(tg_id):
 
@@ -84,8 +83,13 @@ shuffle_keyboard = InlineKeyboardMarkup(
     ]
 )
 
-# ---------- REGISTRATION ----------
+register_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Зарегистрироваться", callback_data="register_button")]
+    ]
+)
 
+# ---------- REGISTRATION ----------
 
 @dp.message(Command("register"))
 async def register(message: types.Message):
@@ -102,7 +106,6 @@ async def register(message: types.Message):
 
     await message.answer("Введите ваше имя")
 
-
 @dp.message(
     lambda message: message.from_user.id in registration
     and not message.text.startswith("/")
@@ -116,7 +119,6 @@ async def get_name(message: types.Message):
         data["name"] = message.text
 
         await message.answer("🏃 Оцените Бег", reply_markup=rating_keyboard)
-
 
 @dp.callback_query(lambda c: c.data.startswith("rate_"))
 async def rate(call: types.CallbackQuery):
@@ -160,6 +162,21 @@ async def rate(call: types.CallbackQuery):
             "✅ Регистрация завершена\n\nГолосуйте за участие в игре",
             reply_markup=play_keyboard,
         )
+
+@dp.callback_query(lambda c: c.data == "register_button")
+async def register_button(call: types.CallbackQuery):
+
+    user_id = call.from_user.id
+
+    player = get_player(user_id)
+
+    if player:
+        await call.answer("Вы уже зарегистрированы ✅", show_alert=True)
+        return
+
+    registration[user_id] = {}
+
+    await call.message.answer("Введите ваше имя")
 
 
 # ---------- CREATE GAME ----------
@@ -232,7 +249,10 @@ async def play_yes(call: types.CallbackQuery):
 
     if not player:
 
-        await call.answer("Сначала зарегистрируйтесь /register", show_alert=True)
+        await call.message.edit_text(
+            "❌ Вы не зарегистрированы!\n\nНажмите кнопку ниже для регистрации:",
+            reply_markup=register_keyboard
+        )
 
         return
 
