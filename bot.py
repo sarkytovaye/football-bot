@@ -324,8 +324,7 @@ async def rate(call: types.CallbackQuery):
 
         await call.message.edit_text(
             "✅ Регистрация завершена\n\nТеперь оцените других игроков 👇",
-reply_markup=rate_players_keyboard,
-            reply_markup=play_keyboard,
+        reply_markup=rate_players_keyboard
         )
 
 
