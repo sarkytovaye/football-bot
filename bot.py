@@ -134,15 +134,17 @@ register_keyboard = InlineKeyboardMarkup(
 
 # ---------- REGISTRATION (name + self-assessment 4 criteria) ----------
 
-@dp.message(Command("register"))
-async def register(message: types.Message):
-    user_id = message.from_user.id
-    player = get_player_full(user_id)
-    if player:
-        await message.answer("Вы уже зарегистрированы ✅")
-        return
-    registration[user_id] = {"stage": "name"}
-    await message.answer("Введите ваше имя")
+@dp.callback_query(lambda c: c.data == "register_button") 
+async def register_button(call: types.CallbackQuery): 
+    user_id = call.from_user.id 
+    player = get_player_full(user_id) 
+    if player: await call.answer("Вы уже зарегистрированы ✅", show_alert=True) 
+        return if user_id in registration: 
+            await call.answer("Вы уже начали регистрацию. Введите имя.", show_alert=False) 
+            return registration[user_id] = {"stage": "name"} try: 
+                await bot.send_message(user_id, "Введите ваше имя") except Exception: 
+                    await call.message.answer("Введите ваше имя") 
+                    await call.answer()
 
 @dp.message(lambda message: message.from_user.id in registration and not message.text.startswith("/"))
 async def get_name(message: types.Message):
