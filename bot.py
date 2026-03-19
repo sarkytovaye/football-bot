@@ -364,33 +364,41 @@ async def game(message: types.Message):
 async def update_list():
 
     playing = [u for u, v in votes.items() if v == "yes"]
+    not_playing = [u for u, v in votes.items() if v == "no"]
 
     total_rating = 0
 
-    text = f"⚽ Игра\n\nИграют ({len(playing)}/{MAX_PLAYERS})\n\n"
+    text = f"⚽ Игра\n\n"
+
+    # --- ИГРАЮТ ---
+    text += f"✅ Играют ({len(playing)}/{MAX_PLAYERS})\n\n"
 
     for i, user in enumerate(playing, 1):
 
         player = get_player(user)
 
         if player:
-
             rating = player[6] or 0
-
             total_rating += rating
-
             text += f"{i}. {player[1]} ({rating})\n"
 
-    text += f"\n📊 Общий рейтинг группы: {total_rating}\n"
+    text += f"\n📊 Общий рейтинг: {round(total_rating, 2)}\n"
 
+    # --- НЕ ИГРАЮТ ---
+    if not_playing:
+        text += f"\n❌ Не играют ({len(not_playing)})\n\n"
+
+        for i, user in enumerate(not_playing, 1):
+            player = get_player(user)
+
+            if player:
+                text += f"{i}. {player[1]}\n"
+
+    # --- ЛИМИТ ---
     if len(playing) >= MAX_PLAYERS:
-
         text += "\n⛔ Набор игроков завершён"
-
         await game_message.edit_text(text)
-
     else:
-
         await game_message.edit_text(text, reply_markup=play_keyboard)
 
 
@@ -399,25 +407,45 @@ async def update_list():
 
 @dp.callback_query(lambda c: c.data == "play_yes")
 async def play_yes(call: types.CallbackQuery):
+    
+    
+     
+    if not game_message:
+        await call.answer("Игра не запущена", show_alert=True)
+        return
 
     player = get_player(call.from_user.id)
 
     if not player:
         await call.message.answer(
-        "Сначала зарегистрируйтесь 👇",
-        reply_markup=register_keyboard
-    )
+            "Сначала зарегистрируйтесь 👇",
+            reply_markup=register_keyboard
+        )
         await call.answer()
         return
 
-    votes[call.from_user.id] = "yes"
+    prev_vote = votes.get(call.from_user.id)
+    
+    if prev_vote != "yes" and len([v for v in votes.values() if v == "yes"]) >= MAX_PLAYERS:
+        await call.answer("Мест больше нет ⛔", show_alert=True)
+        return
 
+    # уже выбрал "играю"
+    if prev_vote == "yes":
+        await call.answer("Вы уже в списке ✅")
+        return
+
+    # переголосование
+    if prev_vote == "no":
+        votes[call.from_user.id] = "yes"
+        await update_list()
+        await call.answer("Вы изменили решение: теперь играете ⚽")
+        return
+
+    # первый выбор
+    votes[call.from_user.id] = "yes"
     await update_list()
-    if not game_message:
-        return
-    if not game_message:
-        await call.answer("Игра не запущена", show_alert=True)
-        return
+    await call.answer("Вы добавлены в игру ⚽")
 
 
 # ---------- BUTTON NO ----------
@@ -465,11 +493,28 @@ async def send_next_player(message, user_id):
 @dp.callback_query(lambda c: c.data == "play_no")
 async def play_no(call: types.CallbackQuery):
 
-    votes[call.from_user.id] = "no"
-
-    await update_list()
     if not game_message:
+        await call.answer("Игра не запущена", show_alert=True)
         return
+
+    prev_vote = votes.get(call.from_user.id)
+
+    # уже выбрал "не играю"
+    if prev_vote == "no":
+        await call.answer("Вы уже отметились ❌")
+        return
+
+    # переголосование
+    if prev_vote == "yes":
+        votes[call.from_user.id] = "no"
+        await update_list()
+        await call.answer("Вы вышли из игры ❌")
+        return
+
+    # первый выбор
+    votes[call.from_user.id] = "no"
+    await update_list()
+    await call.answer("Вы отметились ❌")
 
 @dp.callback_query(lambda c: c.data == "rate_players")
 async def start_rating(call: types.CallbackQuery):
@@ -648,7 +693,7 @@ async def teams(message: types.Message):
 
     if len(players) >= 15:
 
-        teams = balance_teams(players[:15], 3, 5)
+        teams = smart_balance_teams(players[:15], 3)
 
         for i, team in enumerate(teams, 1):
 
@@ -667,7 +712,7 @@ async def teams(message: types.Message):
         main_players = players[:10]
         bench = players[10:]
 
-        teams = balance_teams(main_players, 2, 5)
+        teams = smart_balance_teams(main_players, 2)
 
         text += "🔵 Команда\n"
 
@@ -713,20 +758,27 @@ async def create_teams_auto(chat_id):
 
         text += f"🔹 Команда {i}\n"
 
-        for p in team:
-            text += p["name"] + "\n"
+        for p in sorted(team, key=lambda x: x["rating"], reverse=True):
+            text += f"{p['name']} ({p['rating']})\n"
 
         text += "\n"
 
     await bot.send_message(chat_id, text)
 
-def balance_teams(players, num_teams, team_size):
-    random.shuffle(players)
+def smart_balance_teams(players, num_teams):
 
-    teams = []
-    for i in range(num_teams):
-        team = players[i*team_size:(i+1)*team_size]
-        teams.append(team)
+    # сортировка по рейтингу (сильные первыми)
+    players = sorted(players, key=lambda x: x["rating"], reverse=True)
+
+    teams = [[] for _ in range(num_teams)]
+    team_sums = [0] * num_teams
+
+    for player in players:
+        # ищем самую слабую команду
+        min_index = team_sums.index(min(team_sums))
+
+        teams[min_index].append(player)
+        team_sums[min_index] += player["rating"]
 
     return teams
 
