@@ -27,22 +27,23 @@ game_launches = []
 conn = sqlite3.connect("players.db")
 cursor = conn.cursor()
 
-cursor.execute("""
+cursor.execute(
+    """
 CREATE TABLE IF NOT EXISTS players(
 tg_id INTEGER PRIMARY KEY,
 name TEXT,
 rating INTEGER
 )
-""")
+"""
+)
 
 conn.commit()
 
 
-def save_player(tg_id,name,rating):
+def save_player(tg_id, name, rating):
 
     cursor.execute(
-        "INSERT OR REPLACE INTO players VALUES(?,?,?)",
-        (tg_id,name,rating)
+        "INSERT OR REPLACE INTO players VALUES(?,?,?)", (tg_id, name, rating)
     )
 
     conn.commit()
@@ -50,23 +51,21 @@ def save_player(tg_id,name,rating):
 
 def get_player(tg_id):
 
-    cursor.execute(
-        "SELECT * FROM players WHERE tg_id=?",
-        (tg_id,)
-    )
+    cursor.execute("SELECT * FROM players WHERE tg_id=?", (tg_id,))
 
     return cursor.fetchone()
+
 
 # ---------- KEYBOARDS ----------
 
 rating_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [
-            InlineKeyboardButton(text="1",callback_data="rate_1"),
-            InlineKeyboardButton(text="2",callback_data="rate_2"),
-            InlineKeyboardButton(text="3",callback_data="rate_3"),
-            InlineKeyboardButton(text="4",callback_data="rate_4"),
-            InlineKeyboardButton(text="5",callback_data="rate_5")
+            InlineKeyboardButton(text="1", callback_data="rate_1"),
+            InlineKeyboardButton(text="2", callback_data="rate_2"),
+            InlineKeyboardButton(text="3", callback_data="rate_3"),
+            InlineKeyboardButton(text="4", callback_data="rate_4"),
+            InlineKeyboardButton(text="5", callback_data="rate_5"),
         ]
     ]
 )
@@ -74,21 +73,20 @@ rating_keyboard = InlineKeyboardMarkup(
 play_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
         [
-            InlineKeyboardButton(text="⚽ Играю",callback_data="play_yes"),
-            InlineKeyboardButton(text="❌ Не играю",callback_data="play_no")
+            InlineKeyboardButton(text="⚽ Играю", callback_data="play_yes"),
+            InlineKeyboardButton(text="❌ Не играю", callback_data="play_no"),
         ]
     ]
 )
 
 shuffle_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🔄 Перемешать команды",callback_data="shuffle")
-        ]
+        [InlineKeyboardButton(text="🔄 Перемешать команды", callback_data="shuffle")]
     ]
 )
 
 # ---------- REGISTRATION ----------
+
 
 @dp.message(Command("register"))
 async def register(message: types.Message):
@@ -105,7 +103,11 @@ async def register(message: types.Message):
 
     await message.answer("Введите ваше имя")
 
-@dp.message(lambda message: message.from_user.id in registration and not message.text.startswith("/"))
+
+@dp.message(
+    lambda message: message.from_user.id in registration
+    and not message.text.startswith("/")
+)
 async def get_name(message: types.Message):
 
     user_id = message.from_user.id
@@ -114,14 +116,11 @@ async def get_name(message: types.Message):
     if "name" not in data:
         data["name"] = message.text
 
-        await message.answer(
-            "🏃 Оцените Бег",
-            reply_markup=rating_keyboard
-        )
+        await message.answer("🏃 Оцените Бег", reply_markup=rating_keyboard)
 
 
-@dp.callback_query(lambda c:c.data.startswith("rate_"))
-async def rate(call:types.CallbackQuery):
+@dp.callback_query(lambda c: c.data.startswith("rate_"))
+async def rate(call: types.CallbackQuery):
 
     user_id = call.from_user.id
 
@@ -136,25 +135,17 @@ async def rate(call:types.CallbackQuery):
 
         data["run"] = value
 
-        await call.message.edit_text(
-            "⚽ Оцените Удар",
-            reply_markup=rating_keyboard
-        )
+        await call.message.edit_text("⚽ Оцените Удар", reply_markup=rating_keyboard)
 
         return
-
 
     if "shot" not in data:
 
         data["shot"] = value
 
-        await call.message.edit_text(
-            "🎯 Оцените Пас",
-            reply_markup=rating_keyboard
-        )
+        await call.message.edit_text("🎯 Оцените Пас", reply_markup=rating_keyboard)
 
         return
-
 
     if "pass" not in data:
 
@@ -162,16 +153,18 @@ async def rate(call:types.CallbackQuery):
 
         rating = data["run"] + data["shot"] + data["pass"]
 
-        save_player(user_id,data["name"],rating)
+        save_player(user_id, data["name"], rating)
 
         del registration[user_id]
 
         await call.message.edit_text(
-    "✅ Регистрация завершена\n\nГолосуйте за участие в игре",
-    reply_markup=play_keyboard
-)
+            "✅ Регистрация завершена\n\nГолосуйте за участие в игре",
+            reply_markup=play_keyboard,
+        )
+
 
 # ---------- CREATE GAME ----------
+
 
 @dp.message(Command("game"))
 async def game(message: types.Message):
@@ -180,16 +173,11 @@ async def game(message: types.Message):
 
     now = datetime.now()
 
-    game_launches[:] = [
-        t for t in game_launches
-        if (now - t).days < 3
-    ]
+    game_launches[:] = [t for t in game_launches if (now - t).days < 3]
 
     if len(game_launches) >= 1:
 
-        await message.answer(
-            "⚠ Игру можно запускать только 1 раз в 3 дня"
-        )
+        await message.answer("⚠ Игру можно запускать только 1 раз в 3 дня")
         return
 
     game_launches.append(now)
@@ -197,22 +185,22 @@ async def game(message: types.Message):
     votes.clear()
 
     game_message = await message.answer(
-        "⚽ Игра\n\nИграют (0/15)",
-        reply_markup=play_keyboard
+        "⚽ Игра\n\nИграют (0/15)", reply_markup=play_keyboard
     )
+
 
 # ---------- UPDATE LIST ----------
 
 
 async def update_list():
 
-    playing = [u for u,v in votes.items() if v=="yes"]
+    playing = [u for u, v in votes.items() if v == "yes"]
 
     total_rating = 0
 
     text = f"⚽ Игра\n\nИграют ({len(playing)}/{MAX_PLAYERS})\n\n"
 
-    for i,user in enumerate(playing,1):
+    for i, user in enumerate(playing, 1):
 
         player = get_player(user)
 
@@ -234,41 +222,41 @@ async def update_list():
 
     else:
 
-        await game_message.edit_text(
-            text,
-            reply_markup=play_keyboard
-        )
+        await game_message.edit_text(text, reply_markup=play_keyboard)
+
 
 # ---------- BUTTON YES ----------
 
-@dp.callback_query(lambda c:c.data=="play_yes")
-async def play_yes(call:types.CallbackQuery):
 
-    player=get_player(call.from_user.id)
+@dp.callback_query(lambda c: c.data == "play_yes")
+async def play_yes(call: types.CallbackQuery):
+
+    player = get_player(call.from_user.id)
 
     if not player:
 
-        await call.answer(
-            "Сначала зарегистрируйтесь /register",
-            show_alert=True
-        )
+        await call.answer("Сначала зарегистрируйтесь /register", show_alert=True)
 
         return
 
-    votes[call.from_user.id]="yes"
+    votes[call.from_user.id] = "yes"
 
     await update_list()
+
 
 # ---------- BUTTON NO ----------
 
-@dp.callback_query(lambda c:c.data=="play_no")
-async def play_no(call:types.CallbackQuery):
 
-    votes[call.from_user.id]="no"
+@dp.callback_query(lambda c: c.data == "play_no")
+async def play_no(call: types.CallbackQuery):
+
+    votes[call.from_user.id] = "no"
 
     await update_list()
 
+
 # ---------- PERFECT BALANCE ----------
+
 
 def perfect_balance(players):
 
@@ -276,32 +264,34 @@ def perfect_balance(players):
     best_team1 = None
     best_team2 = None
 
-    for combo in itertools.combinations(players,5):
+    for combo in itertools.combinations(players, 5):
 
-        team1=list(combo)
-        team2=[p for p in players if p not in team1]
+        team1 = list(combo)
+        team2 = [p for p in players if p not in team1]
 
-        r1=sum(p["rating"] for p in team1)
-        r2=sum(p["rating"] for p in team2)
+        r1 = sum(p["rating"] for p in team1)
+        r2 = sum(p["rating"] for p in team2)
 
-        diff=abs(r1-r2)
+        diff = abs(r1 - r2)
 
         if diff < best_diff:
 
-            best_diff=diff
-            best_team1=team1
-            best_team2=team2
+            best_diff = diff
+            best_team1 = team1
+            best_team2 = team2
 
-    return best_team1,best_team2,diff
+    return best_team1, best_team2, diff
+
 
 # ---------- CREATE TEAMS ----------
 
+
 @dp.message(Command("teams"))
-async def teams(message:types.Message):
+async def teams(message: types.Message):
 
     players = []
 
-    for u,v in votes.items():
+    for u, v in votes.items():
 
         if v == "yes":
 
@@ -309,10 +299,7 @@ async def teams(message:types.Message):
 
             if player:
 
-                players.append({
-                    "name": player[1],
-                    "rating": player[2]
-                })
+                players.append({"name": player[1], "rating": player[2]})
 
         if len(players) < 10:
 
@@ -320,12 +307,13 @@ async def teams(message:types.Message):
             return
 
             text = "⚽ Команды\n\n"
-    
+
         if len(players) >= 15:
-        
+
             teams = balance_teams(players[:15], 3, 5)
 
             text = "⚽ Команды\n\n"
+
 
 for i, team in enumerate(teams, 1):
 
@@ -341,35 +329,36 @@ for i, team in enumerate(teams, 1):
 
 else:
 
-        main_players = players[:10]
-        bench = players[10:]
+    main_players = players[:10]
+    bench = players[10:]
 
-        teams = balance_teams(main_players,2,5)
+    teams = balance_teams(main_players, 2, 5)
 
-        text += "🔵 Команда\n"
+    text += "🔵 Команда\n"
 
-        for p in teams[0]:
-            text += p["name"]+"\n"
+    for p in teams[0]:
+        text += p["name"] + "\n"
 
-        text += "\n🔴 Команда\n"
+    text += "\n🔴 Команда\n"
 
-        for p in teams[1]:
-            text += p["name"]+"\n"
+    for p in teams[1]:
+        text += p["name"] + "\n"
 
-        if bench:
+    if bench:
 
-            text += "\n🪑 Запасные\n"
+        text += "\n🪑 Запасные\n"
 
-            for p in bench:
-                text += p["name"]+"\n"
+        for p in bench:
+            text += p["name"] + "\n"
 
-        await message.answer(text)
+    await message.answer(text)
+
 
 async def create_teams_auto(chat_id):
 
     players = []
 
-    for u,v in votes.items():
+    for u, v in votes.items():
 
         if v == "yes":
 
@@ -377,10 +366,7 @@ async def create_teams_auto(chat_id):
 
             if player:
 
-                players.append({
-                    "name": player[1],
-                    "rating": player[2]
-                })
+                players.append({"name": player[1], "rating": player[2]})
 
     players = players[:15]
 
@@ -388,7 +374,7 @@ async def create_teams_auto(chat_id):
 
     text = "⚽ Команды\n\n"
 
-    for i,team in enumerate(teams,1):
+    for i, team in enumerate(teams, 1):
 
         text += f"🔹 Команда {i}\n"
 
@@ -398,7 +384,8 @@ async def create_teams_auto(chat_id):
         text += "\n"
 
     await bot.send_message(chat_id, text)
-    
+
+
 def team_total(team):
     return sum(p["rating"] for p in team)
 
@@ -411,64 +398,63 @@ def team_average(team):
     total = team_total(team)
 
     return round(total / len(team), 2)
+
+
 # ---------- SHUFFLE ----------
 
-@dp.callback_query(lambda c:c.data=="shuffle")
-async def shuffle(call:types.CallbackQuery):
 
-    member = await bot.get_chat_member(
-        call.message.chat.id,
-        call.from_user.id
-    )
+@dp.callback_query(lambda c: c.data == "shuffle")
+async def shuffle(call: types.CallbackQuery):
 
-    if member.status not in ["administrator","creator"]:
+    member = await bot.get_chat_member(call.message.chat.id, call.from_user.id)
+
+    if member.status not in ["administrator", "creator"]:
 
         await call.answer(
-            "Только администратор может перемешивать команды",
-            show_alert=True
+            "Только администратор может перемешивать команды", show_alert=True
         )
         return
 
-    players=[]
+    players = []
 
-    for u,v in votes.items():
+    for u, v in votes.items():
 
-        if v=="yes":
+        if v == "yes":
 
-            player=get_player(u)
+            player = get_player(u)
 
             if player:
 
-                players.append({
-                    "name":player[1],
-                    "rating":player[2]
-                })
+                players.append({"name": player[1], "rating": player[2]})
 
     random.shuffle(players)
 
-    main_players=players[:10]
+    main_players = players[:10]
 
-    team1,team2,diff=perfect_balance(main_players)
+    team1, team2, diff = perfect_balance(main_players)
 
-    text="🔄 Новые команды\n\n"
+    text = "🔄 Новые команды\n\n"
 
-    text+="🔵 Команда\n"
+    text += "🔵 Команда\n"
 
     for p in team1:
-        text+=p["name"]+"\n"
+        text += p["name"] + "\n"
 
-    text+="\n🔴 Команда\n"
+    text += "\n🔴 Команда\n"
 
     for p in team2:
-        text+=p["name"]+"\n"
+        text += p["name"] + "\n"
 
-    text+=f"\nРазница рейтинга: {diff}\n"
+    text += f"\nРазница рейтинга: {diff}\n"
 
-    await call.message.edit_text(text,reply_markup=shuffle_keyboard)
+    await call.message.edit_text(text, reply_markup=shuffle_keyboard)
+
 
 # ---------- START BOT ----------
 
+
 async def main():
     await dp.start_polling(bot)
+
 
 asyncio.run(main())
