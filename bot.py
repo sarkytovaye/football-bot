@@ -20,6 +20,7 @@ MAX_PLAYERS = 15
 
 registration = {}
 votes = {}
+rating_process = {}
 game_message = None
 game_launches = []
 
@@ -28,23 +29,105 @@ game_launches = []
 conn = sqlite3.connect("players.db")
 cursor = conn.cursor()
 
-cursor.execute(
-    """
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS players(
-tg_id INTEGER PRIMARY KEY,
-name TEXT,
-rating INTEGER
+    tg_id INTEGER PRIMARY KEY,
+    name TEXT,
+    self_rating INTEGER,
+    final_rating REAL,
+    status TEXT
 )
-"""
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS ratings(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER,
+    rater_id INTEGER,
+    stamina INTEGER,
+    experience INTEGER,
+    speed INTEGER,
+    technique INTEGER
 )
+""")
 
 conn.commit()
 
+def save_player(tg_id, name):
+    cursor.execute("""
+    INSERT OR REPLACE INTO players(tg_id, name, status)
+    VALUES(?,?,?)
+    """, (tg_id, name, "не оценен"))
+    conn.commit()
 
-def save_player(tg_id, name, rating):
+
+def save_rating(player_id, rater_id, data):
+    cursor.execute("""
+    INSERT INTO ratings(player_id, rater_id, stamina, experience, speed, technique)
+    VALUES(?,?,?,?,?,?)
+    """, (
+        player_id,
+        rater_id,
+        data["stamina"],
+        data["experience"],
+        data["speed"],
+        data["technique"]
+    ))
+    conn.commit()
+
+
+def has_already_rated(player_id, rater_id):
+    cursor.execute("""
+    SELECT 1 FROM ratings WHERE player_id=? AND rater_id=?
+    """, (player_id, rater_id))
+    return cursor.fetchone()
+
+
+def update_player_rating(player_id):
+    cursor.execute("""
+    SELECT stamina, experience, speed, technique
+    FROM ratings
+    WHERE player_id=?
+    """, (player_id,))
+
+    rows = cursor.fetchall()
+
+    if len(rows) < 5:
+        cursor.execute("""
+        UPDATE players SET status='не оценен', final_rating=NULL
+        WHERE tg_id=?
+        """, (player_id,))
+        conn.commit()
+        return
+
+    total = 0
+    count = 0
+
+    for r in rows:
+        total += sum(r)
+        count += 4
+
+    avg = total / count
+
+    cursor.execute("""
+    UPDATE players
+    SET final_rating=?, status='оценен'
+    WHERE tg_id=?
+    """, (avg, player_id))
+
+    conn.commit()
+
+
+def get_players_for_rating(rater_id):
+    cursor.execute("""
+    SELECT tg_id, name FROM players WHERE tg_id != ?
+    """, (rater_id,))
+    return cursor.fetchall()
+
+def save_player(tg_id, name, self_rating):
 
     cursor.execute(
-        "INSERT OR REPLACE INTO players VALUES(?,?,?)", (tg_id, name, rating)
+        "INSERT OR REPLACE INTO players VALUES(?,?,?,?,?)", (tg_id, name, self_rating, 0.0, "pending")
     )
 
     conn.commit()
@@ -91,6 +174,32 @@ register_keyboard = InlineKeyboardMarkup(
         [InlineKeyboardButton(text="📝 Зарегистрироваться", callback_data="register_btn")]
     ]
 )
+
+rate_players_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Оценить игроков", callback_data="rate_players")]
+    ]
+)
+def rating_keyboard_10(player_id, criterion):
+    buttons = []
+    row = []
+
+    for i in range(1, 11):
+        row.append(
+            InlineKeyboardButton(
+                text=str(i),
+                callback_data=f"rate_{player_id}_{criterion}_{i}"
+            )
+        )
+
+        if len(row) == 5:
+            buttons.append(row)
+            row = []
+
+    if row:
+        buttons.append(row)
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 # ---------- REGISTRATION ----------
 
 @dp.message(Command("start"))
@@ -131,8 +240,51 @@ async def get_name(message: types.Message):
 
         await message.answer("🏃 Оцените Бег", reply_markup=rating_keyboard)
 
+@dp.callback_query(lambda c: c.data.startswith("rate_") and len(c.data.split("_")) == 4)
+async def process_rating(call: types.CallbackQuery):
 
-@dp.callback_query(lambda c: c.data.startswith("rate_"))
+    _, player_id, criterion, value = call.data.split("_")
+
+    player_id = int(player_id)
+    value = int(value)
+    rater_id = call.from_user.id
+
+    key = (rater_id, player_id)
+
+    if key not in rating_process:
+        rating_process[key] = {}
+
+    rating_process[key][criterion] = value
+    data = rating_process[key]
+
+    if criterion == "stamina":
+        await call.message.edit_text(
+            "2️⃣ Опыт",
+            reply_markup=rating_keyboard_10(player_id, "experience")
+        )
+
+    elif criterion == "experience":
+        await call.message.edit_text(
+            "3️⃣ Скорость",
+            reply_markup=rating_keyboard_10(player_id, "speed")
+        )
+
+    elif criterion == "speed":
+        await call.message.edit_text(
+            "4️⃣ Техника",
+            reply_markup=rating_keyboard_10(player_id, "technique")
+        )
+
+    elif criterion == "technique":
+
+        save_rating(player_id, rater_id, data)
+        update_player_rating(player_id)
+
+        del rating_process[key]
+
+        await call.message.edit_text("✅ Оценка сохранена")
+
+@dp.callback_query(lambda c: c.data.startswith("rate_") and len(c.data.split("_")) == 2)
 async def rate(call: types.CallbackQuery):
 
     user_id = call.from_user.id
@@ -166,12 +318,13 @@ async def rate(call: types.CallbackQuery):
 
         rating = data["run"] + data["shot"] + data["pass"]
 
-        save_player(user_id, data["name"], rating)
+        save_player(user_id, data["name"])
 
         del registration[user_id]
 
         await call.message.edit_text(
-            "✅ Регистрация завершена\n\nГолосуйте за участие в игре",
+            "✅ Регистрация завершена\n\nТеперь оцените других игроков 👇",
+reply_markup=rate_players_keyboard,
             reply_markup=play_keyboard,
         )
 
@@ -269,7 +422,25 @@ async def play_no(call: types.CallbackQuery):
 
     await update_list()
 
+@dp.callback_query(lambda c: c.data == "rate_players")
+async def start_rating(call: types.CallbackQuery):
 
+    players = get_players_for_rating(call.from_user.id)
+
+    if not players:
+        await call.answer("Нет игроков для оценки", show_alert=True)
+        return
+
+    player_id, name = players[0]
+
+    if has_already_rated(player_id, call.from_user.id):
+        await call.answer("Вы уже оценили этого игрока", show_alert=True)
+        return
+
+    await call.message.answer(
+        f"Оцените игрока: {name}\n\n1️⃣ Выносливость",
+        reply_markup=rating_keyboard_10(player_id, "stamina")
+    )
 # ---------- PERFECT BALANCE ----------
 
 
