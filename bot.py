@@ -21,6 +21,7 @@ MAX_PLAYERS = 15
 registration = {}
 votes = {}
 rating_process = {}
+self_rating_process = {}
 game_message = None
 game_launches = []
 
@@ -33,7 +34,10 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS players(
     tg_id INTEGER PRIMARY KEY,
     name TEXT,
-    self_rating INTEGER,
+    self_stamina INTEGER,
+    self_experience INTEGER,
+    self_speed INTEGER,
+    self_technique INTEGER,
     final_rating REAL,
     status TEXT
 )
@@ -53,11 +57,24 @@ CREATE TABLE IF NOT EXISTS ratings(
 
 conn.commit()
 
-def save_player(tg_id, name):
+def save_player(tg_id, name, data):
     cursor.execute("""
-    INSERT OR REPLACE INTO players(tg_id, name, status)
-    VALUES(?,?,?)
-    """, (tg_id, name, "не оценен"))
+    INSERT OR REPLACE INTO players(
+        tg_id, name,
+        self_stamina, self_experience, self_speed, self_technique,
+        final_rating, status
+    )
+    VALUES(?,?,?,?,?,?,?,?)
+    """, (
+        tg_id,
+        name,
+        data["stamina"],
+        data["experience"],
+        data["speed"],
+        data["technique"],
+        None,
+        "не оценен"
+    ))
     conn.commit()
 
 
@@ -84,6 +101,7 @@ def has_already_rated(player_id, rater_id):
 
 
 def update_player_rating(player_id):
+
     cursor.execute("""
     SELECT stamina, experience, speed, technique
     FROM ratings
@@ -92,6 +110,26 @@ def update_player_rating(player_id):
 
     rows = cursor.fetchall()
 
+    cursor.execute("""
+    SELECT self_stamina, self_experience, self_speed, self_technique
+    FROM players WHERE tg_id=?
+    """, (player_id,))
+
+    self_data = cursor.fetchone()
+
+    total = 0
+    count = 0
+
+    # оценки других
+    for r in rows:
+        total += sum(r)
+        count += 4
+
+    # добавляем самооценку
+    if self_data:
+        total += sum(self_data)
+        count += 4
+
     if len(rows) < 5:
         cursor.execute("""
         UPDATE players SET status='не оценен', final_rating=NULL
@@ -99,13 +137,6 @@ def update_player_rating(player_id):
         """, (player_id,))
         conn.commit()
         return
-
-    total = 0
-    count = 0
-
-    for r in rows:
-        total += sum(r)
-        count += 4
 
     avg = total / count
 
@@ -225,7 +256,6 @@ async def register_button(call: types.CallbackQuery):
     await call.message.answer("Введите ваше имя")
     await call.answer()
 
-
 @dp.message(
     lambda message: message.from_user.id in registration
     and not message.text.startswith("/")
@@ -233,99 +263,57 @@ async def register_button(call: types.CallbackQuery):
 async def get_name(message: types.Message):
 
     user_id = message.from_user.id
-    data = registration[user_id]
 
-    if "name" not in data:
-        data["name"] = message.text
+    self_rating_process[user_id] = {
+        "name": message.text
+    }
 
-        await message.answer("🏃 Оцените Бег", reply_markup=rating_keyboard)
+    await message.answer(
+        "Оцените себя\n\n1️⃣ Выносливость",
+        reply_markup=rating_keyboard_10(user_id, "self_stamina")
+    )
 
-@dp.callback_query(lambda c: c.data.startswith("rate_") and len(c.data.split("_")) == 4)
-async def process_rating(call: types.CallbackQuery):
+@dp.callback_query(lambda c: c.data.startswith("rate_") and "self" in c.data)
+async def self_rating(call: types.CallbackQuery):
 
-    _, player_id, criterion, value = call.data.split("_")
+    _, user_id, criterion, value = call.data.split("_")
 
-    player_id = int(player_id)
+    user_id = int(user_id)
     value = int(value)
-    rater_id = call.from_user.id
 
-    key = (rater_id, player_id)
+    data = self_rating_process[user_id]
+    data[criterion.replace("self_", "")] = value
 
-    if key not in rating_process:
-        rating_process[key] = {}
-
-    rating_process[key][criterion] = value
-    data = rating_process[key]
-
-    if criterion == "stamina":
+    if criterion == "self_stamina":
         await call.message.edit_text(
             "2️⃣ Опыт",
-            reply_markup=rating_keyboard_10(player_id, "experience")
+            reply_markup=rating_keyboard_10(user_id, "self_experience")
         )
 
-    elif criterion == "experience":
+    elif criterion == "self_experience":
         await call.message.edit_text(
             "3️⃣ Скорость",
-            reply_markup=rating_keyboard_10(player_id, "speed")
+            reply_markup=rating_keyboard_10(user_id, "self_speed")
         )
 
-    elif criterion == "speed":
+    elif criterion == "self_speed":
         await call.message.edit_text(
             "4️⃣ Техника",
-            reply_markup=rating_keyboard_10(player_id, "technique")
+            reply_markup=rating_keyboard_10(user_id, "self_technique")
         )
 
-    elif criterion == "technique":
+    elif criterion == "self_technique":
 
-        save_rating(player_id, rater_id, data)
-        update_player_rating(player_id)
+        save_player(user_id, data["name"], data)
 
-        del rating_process[key]
-
-        await call.message.edit_text("✅ Оценка сохранена")
-
-@dp.callback_query(lambda c: c.data.startswith("rate_") and len(c.data.split("_")) == 2)
-async def rate(call: types.CallbackQuery):
-
-    user_id = call.from_user.id
-
-    if user_id not in registration:
-        return
-
-    value = int(call.data.split("_")[1])
-
-    data = registration[user_id]
-
-    if "run" not in data:
-
-        data["run"] = value
-
-        await call.message.edit_text("⚽ Оцените Удар", reply_markup=rating_keyboard)
-
-        return
-
-    if "shot" not in data:
-
-        data["shot"] = value
-
-        await call.message.edit_text("🎯 Оцените Пас", reply_markup=rating_keyboard)
-
-        return
-
-    if "pass" not in data:
-
-        data["pass"] = value
-
-        rating = data["run"] + data["shot"] + data["pass"]
-
-        save_player(user_id, data["name"])
-
+        del self_rating_process[user_id]
         del registration[user_id]
 
         await call.message.edit_text(
             "✅ Регистрация завершена\n\nТеперь оцените других игроков 👇",
-        reply_markup=rate_players_keyboard
+            reply_markup=rate_players_keyboard
         )
+
 
 
 # ---------- CREATE GAME ----------
