@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 import os
 
-TOKEN = os.getenv("8669248941:AAHFsZeYf91dJyvn54WTuIVM7NssTOqShbE")
+TOKEN = os.getenv("BOT_TOKEN")
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
@@ -38,7 +38,6 @@ rating INTEGER
 )
 
 conn.commit()
-
 
 def save_player(tg_id, name, rating):
 
@@ -165,7 +164,6 @@ async def rate(call: types.CallbackQuery):
 
 # ---------- CREATE GAME ----------
 
-
 @dp.message(Command("game"))
 async def game(message: types.Message):
 
@@ -227,7 +225,6 @@ async def update_list():
 
 # ---------- BUTTON YES ----------
 
-
 @dp.callback_query(lambda c: c.data == "play_yes")
 async def play_yes(call: types.CallbackQuery):
 
@@ -246,7 +243,6 @@ async def play_yes(call: types.CallbackQuery):
 
 # ---------- BUTTON NO ----------
 
-
 @dp.callback_query(lambda c: c.data == "play_no")
 async def play_no(call: types.CallbackQuery):
 
@@ -255,7 +251,21 @@ async def play_no(call: types.CallbackQuery):
     await update_list()
 
 
-# ---------- PERFECT BALANCE ----------
+# ---------- HELPER FUNCTIONS ----------
+
+
+def team_total(team):
+    return sum(p["rating"] for p in team)
+
+
+def team_average(team):
+
+    if not team:
+        return 0
+
+    total = team_total(team)
+
+    return round(total / len(team), 2)
 
 
 def perfect_balance(players):
@@ -263,8 +273,9 @@ def perfect_balance(players):
     best_diff = 999
     best_team1 = None
     best_team2 = None
+    best_team1_rating = 0
 
-    for combo in itertools.combinations(players, 5):
+    for combo in itertools.combinations(players, len(players) // 2):
 
         team1 = list(combo)
         team2 = [p for p in players if p not in team1]
@@ -279,12 +290,32 @@ def perfect_balance(players):
             best_diff = diff
             best_team1 = team1
             best_team2 = team2
+            best_team1_rating = r1
 
-    return best_team1, best_team2, diff
+    return best_team1, best_team2, best_diff
+
+
+def balance_teams(players, num_teams, team_size):
+    """
+    Divide players into num_teams of equal rating strength
+    """
+    if num_teams == 2:
+        return [perfect_balance(players)[:2]]
+    
+    # Sort players by rating in descending order
+    sorted_players = sorted(players, key=lambda p: p["rating"], reverse=True)
+    
+    teams = [[] for _ in range(num_teams)]
+    
+    # Distribute players in a snake pattern for balanced teams
+    for i, player in enumerate(sorted_players):
+        team_idx = i % num_teams
+        teams[team_idx].append(player)
+    
+    return teams
 
 
 # ---------- CREATE TEAMS ----------
-
 
 @dp.message(Command("teams"))
 async def teams(message: types.Message):
@@ -301,57 +332,54 @@ async def teams(message: types.Message):
 
                 players.append({"name": player[1], "rating": player[2]})
 
-        if len(players) < 10:
+    if len(players) < 10:
 
-            await message.answer("❗ Нужно минимум 10 игроков")
-            return
+        await message.answer("❗ Нужно минимум 10 игроков")
+        return
 
-            text = "⚽ Команды\n\n"
+    text = "⚽ Команды\n\n"
 
-        if len(players) >= 15:
+    if len(players) >= 15:
 
-            teams = balance_teams(players[:15], 3, 5)
+        teams_list = balance_teams(players[:15], 3, 5)
 
-            text = "⚽ Команды\n\n"
+        for i, team in enumerate(teams_list, 1):
 
+            total = team_total(team)
+            avg = team_average(team)
 
-for i, team in enumerate(teams, 1):
+            text += f"🔹 Команда {i} ({total} | ср. {avg})\n"
 
-    total = team_total(team)
-    avg = team_average(team)
+            for p in team:
+                text += f"{p['name']} ({p['rating']})\n"
 
-    text += f"🔹 Команда {i} ({total} | ср. {avg})\n"
+            text += "\n"
 
-    for p in team:
-        text += f"{p['name']} ({p['rating']})\n"
+    else:
 
-    text += "\n"
+        main_players = players[:10]
+        bench = players[10:]
 
-else:
+        teams_list = balance_teams(main_players, 2, 5)
 
-    main_players = players[:10]
-    bench = players[10:]
+        text += "🔵 Команда 1\n"
 
-    teams = balance_teams(main_players, 2, 5)
-
-    text += "🔵 Команда\n"
-
-    for p in teams[0]:
-        text += p["name"] + "\n"
-
-    text += "\n🔴 Команда\n"
-
-    for p in teams[1]:
-        text += p["name"] + "\n"
-
-    if bench:
-
-        text += "\n🪑 Запасные\n"
-
-        for p in bench:
+        for p in teams_list[0]:
             text += p["name"] + "\n"
 
-await message.answer(text)
+        text += "\n🔴 Команда 2\n"
+
+        for p in teams_list[1]:
+            text += p["name"] + "\n"
+
+        if bench:
+
+            text += "\n🪑 Запасные\n"
+
+            for p in bench:
+                text += p["name"] + "\n"
+
+    await message.answer(text)
 
 
 async def create_teams_auto(chat_id):
@@ -370,11 +398,11 @@ async def create_teams_auto(chat_id):
 
     players = players[:15]
 
-    teams = balance_teams(players, 3, 5)
+    teams_list = balance_teams(players, 3, 5)
 
     text = "⚽ Команды\n\n"
 
-    for i, team in enumerate(teams, 1):
+    for i, team in enumerate(teams_list, 1):
 
         text += f"🔹 Команда {i}\n"
 
@@ -386,22 +414,7 @@ async def create_teams_auto(chat_id):
     await bot.send_message(chat_id, text)
 
 
-def team_total(team):
-    return sum(p["rating"] for p in team)
-
-
-def team_average(team):
-
-    if not team:
-        return 0
-
-    total = team_total(team)
-
-    return round(total / len(team), 2)
-
-
 # ---------- SHUFFLE ----------
-
 
 @dp.callback_query(lambda c: c.data == "shuffle")
 async def shuffle(call: types.CallbackQuery):
@@ -451,7 +464,6 @@ async def shuffle(call: types.CallbackQuery):
 
 
 # ---------- START BOT ----------
-
 
 async def main():
     await dp.start_polling(bot)
