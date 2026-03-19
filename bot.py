@@ -267,12 +267,16 @@ async def get_name(message: types.Message):
 @dp.callback_query(lambda c: c.data.startswith("rate_") and "self" in c.data)
 async def self_rating(call: types.CallbackQuery):
 
-    _, user_id, criterion, value = call.data.split("_")
-
-    user_id = int(user_id)
-    value = int(value)
-
+    parts = call.data.split("_")
+    
+    user_id = int(parts[1])
+    
+    value = int(parts[-1])
+    
+    criterion = "_".join(parts[2:-1])  # собираем self_stamina
+    
     data = self_rating_process[user_id]
+    
     data[criterion.replace("self_", "")] = value
 
     if criterion == "self_stamina":
@@ -413,29 +417,91 @@ async def start_rating(call: types.CallbackQuery):
         await call.answer("Нет игроков для оценки", show_alert=True)
         return
 
-    player_id, name = players[0]
+    rating_process[call.from_user.id] = {
+        "players": players,
+        "current_index": 0,
+        "data": {}
+    }
 
-    if has_already_rated(player_id, call.from_user.id):
-        await call.answer("Вы уже оценили этого игрока", show_alert=True)
+    await send_next_player(call.message, call.from_user.id)
+    async def send_next_player(message, user_id):
+
+    process = rating_process[user_id]
+    players = process["players"]
+    index = process["current_index"]
+
+    if index >= len(players):
+        del rating_process[user_id]
+        await message.answer("✅ Вы оценили всех игроков!")
         return
 
-    await call.message.answer(
-        f"Оцените игрока: {name}\n\n1️⃣ Выносливость 1 - нет, 10 - может бегать без остановки 1 час",
+    player_id, name = players[index]
+
+    if has_already_rated(player_id, user_id):
+        process["current_index"] += 1
+        await send_next_player(message, user_id)
+        return
+
+    process["data"] = {
+        "player_id": player_id,
+        "name": name
+    }
+
+    await message.answer(
+        f"👤 Игрок: {name}\n\n"
+        f"1️⃣ Выносливость\n"
+        f"Прогресс: {index+1}/{len(players)}",
         reply_markup=rating_keyboard_10(player_id, "stamina")
     )
-    await call.message.answer(
-        f"Оцените игрока: {name}\n\n2️⃣ Опыт 1 - нет, 10 - играет больше 10 лет",
-        reply_markup=rating_keyboard_10(player_id, "experience")
-    )
-    await call.message.answer(
-        f"Оцените игрока: {name}\n\n3️⃣ Скорость 1-нет, 10 - тренированная скоростная выносливость",
-        reply_markup=rating_keyboard_10(player_id, "speed")
-    )
-    await call.message.answer(
-        f"Оцените игрока: {name}\n\n4️⃣ Техника 1-нет, 10 - професиональная техническая подготовка",
-        reply_markup=rating_keyboard_10(player_id, "technique")
-    )
+    @dp.callback_query(lambda c: c.data.startswith("rate_") and "self" not in c.data)
+async def rate_player(call: types.CallbackQuery):
 
+    parts = call.data.split("_")
+
+    player_id = int(parts[1])
+    criterion = parts[2]
+    value = int(parts[3])
+
+    user_id = call.from_user.id
+
+    process = rating_process.get(user_id)
+
+    if not process:
+        await call.answer("Сессия устарела", show_alert=True)
+        return
+
+    data = process["data"]
+    data[criterion] = value
+
+    # --- Переходы между критериями ---
+    if criterion == "stamina":
+        await call.message.edit_text(
+            f"👤 {data['name']}\n\n2️⃣ Опыт",
+            reply_markup=rating_keyboard_10(player_id, "experience")
+        )
+
+    elif criterion == "experience":
+        await call.message.edit_text(
+            f"👤 {data['name']}\n\n3️⃣ Скорость",
+            reply_markup=rating_keyboard_10(player_id, "speed")
+        )
+
+    elif criterion == "speed":
+        await call.message.edit_text(
+            f"👤 {data['name']}\n\n4️⃣ Техника",
+            reply_markup=rating_keyboard_10(player_id, "technique")
+        )
+
+    elif criterion == "technique":
+
+        save_rating(player_id, user_id, data)
+        update_player_rating(player_id)
+
+        process["current_index"] += 1
+
+        await call.message.edit_text("✅ Оценка сохранена")
+
+        await send_next_player(call.message, user_id)
 # ---------- PERFECT BALANCE ----------
 
 
