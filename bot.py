@@ -415,10 +415,52 @@ async def play_yes(call: types.CallbackQuery):
     await update_list()
     if not game_message:
         return
+    if not game_message:
+        await call.answer("Игра не запущена", show_alert=True)
+        return
 
 
 # ---------- BUTTON NO ----------
+async def send_next_player(message, user_id):
 
+    process = rating_process[user_id]
+    players = process["players"]
+    index = process["current_index"]
+
+    if index >= len(players):
+
+        del rating_process[user_id]
+
+        top_players = get_top_players()
+
+        text = "🏆 Топ игроков:\n\n"
+
+        for i, (name, rating) in enumerate(top_players, 1):
+            text += f"{i}. {name} — {round(rating, 2)}\n"
+
+        await message.answer("✅ Вы оценили всех игроков!\n")
+        await message.answer(text)
+
+        return
+
+    player_id, name = players[index]
+
+    if has_already_rated(player_id, user_id):
+        process["current_index"] += 1
+        await send_next_player(message, user_id)
+        return
+
+    process["data"] = {
+        "player_id": player_id,
+        "name": name
+    }
+
+    await message.answer(
+        f"👤 Игрок: {name}\n\n"
+        f"1️⃣ Выносливость\n"
+        f"Прогресс: {index+1}/{len(players)}",
+        reply_markup=rating_keyboard_10(player_id, "stamina")
+    )
 
 @dp.callback_query(lambda c: c.data == "play_no")
 async def play_no(call: types.CallbackQuery):
@@ -485,25 +527,7 @@ async def start_rating(call: types.CallbackQuery):
         f"Прогресс: {index+1}/{len(players)}",
         reply_markup=rating_keyboard_10(player_id, "stamina")
     )
-    @dp.callback_query(lambda c: c.data.startswith("rate_") and "self" not in c.data)
-    async def rate_player(call: types.CallbackQuery):
 
-        parts = call.data.split("_")
-
-    player_id = int(parts[1])
-    criterion = parts[2]
-    value = int(parts[3])
-
-    user_id = call.from_user.id
-
-    process = rating_process.get(user_id)
-
-    if not process:
-        await call.answer("Сессия устарела", show_alert=True)
-        return
-
-    data = process["data"]
-    data[criterion] = value
 
     # --- Переходы между критериями ---
     if criterion == "stamina":
