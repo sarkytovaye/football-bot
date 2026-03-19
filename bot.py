@@ -85,23 +85,35 @@ shuffle_keyboard = InlineKeyboardMarkup(
     ]
 )
 
+register_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Зарегистрироваться", callback_data="register_btn")]
+    ]
+)
 # ---------- REGISTRATION ----------
 
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer(
+        "Добро пожаловать!\n\nНажмите кнопку ниже для регистрации 👇",
+        reply_markup=register_keyboard
+    )
+    
+@dp.callback_query(lambda c: c.data == "register_btn")
+async def register_button(call: types.CallbackQuery):
 
-@dp.message(Command("register"))
-async def register(message: types.Message):
-
-    user_id = message.from_user.id
+    user_id = call.from_user.id
 
     player = get_player(user_id)
 
     if player:
-        await message.answer("Вы уже зарегистрированы ✅")
+        await call.answer("Вы уже зарегистрированы ✅", show_alert=True)
         return
 
     registration[user_id] = {}
 
-    await message.answer("Введите ваше имя")
+    await call.message.answer("Введите ваше имя")
+    await call.answer()
 
 
 @dp.message(
