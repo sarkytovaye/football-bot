@@ -161,7 +161,28 @@ def get_player(tg_id):
 
     return cursor.fetchone()
 
+def get_player_rating(player_id):
+    cursor.execute("""
+    SELECT final_rating FROM players WHERE tg_id=?
+    """, (player_id,))
+    
+    result = cursor.fetchone()
+    
+    if result and result[0]:
+        return round(result[0], 2)
+    
+    return 0
 
+def get_top_players(limit=10):
+    cursor.execute("""
+    SELECT name, final_rating 
+    FROM players 
+    WHERE final_rating IS NOT NULL
+    ORDER BY final_rating DESC
+    LIMIT ?
+    """, (limit,))
+    
+    return cursor.fetchall()
 # ---------- KEYBOARDS ----------
 
 rating_keyboard = InlineKeyboardMarkup(
@@ -431,9 +452,20 @@ async def start_rating(call: types.CallbackQuery):
     index = process["current_index"]
 
     if index >= len(players):
+
         del rating_process[user_id]
-        await message.answer("✅ Вы оценили всех игроков!")
-        return
+
+    top_players = get_top_players()
+
+    text = "🏆 Топ игроков:\n\n"
+
+    for i, (name, rating) in enumerate(top_players, 1):
+        text += f"{i}. {name} — {round(rating, 2)}\n"
+
+    await message.answer("✅ Вы оценили всех игроков!\n")
+    await message.answer(text)
+
+    return
 
     player_id, name = players[index]
 
@@ -497,9 +529,14 @@ async def start_rating(call: types.CallbackQuery):
         save_rating(player_id, user_id, data)
         update_player_rating(player_id)
 
+        avg = get_player_rating(player_id)
+
         process["current_index"] += 1
 
-        await call.message.edit_text("✅ Оценка сохранена")
+        await call.message.edit_text(
+        f"✅ Оценка сохранена\n\n"
+        f"📊 Новый рейтинг игрока: {avg}"
+        )
 
         await send_next_player(call.message, user_id)
 # ---------- PERFECT BALANCE ----------
